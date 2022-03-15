@@ -243,6 +243,7 @@ function addContents() {
       passwords = [];
       if(response.success) {
         setTimeout(checkSessionid, 1000*30);
+        setTimeout(reloadContents, 1000*60);
         for(var index in response.passwords) {
           var e = response.passwords[index];
           passwords.push([cleanString(decrypt(e.title, password)), cleanString(decrypt(e.username, password)), decrypt(e.password, password), cleanString(decrypt(e.email, password)), cleanString(decrypt(e.description, password)), cleanString(decrypt(e.url, password)), e.id]);

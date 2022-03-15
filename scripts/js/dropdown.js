@@ -51,6 +51,10 @@ function rightClick(e) {
     menu.style.display = 'block';
     menu.style.left = (e.pageX + 5) + "px";
     menu.style.top = (e.pageY + 5) + "px";
+
+    if(e.pageY > window.innerHeight / 2 + window.innerHeight / 10) {
+      menu.style.top = (e.pageY + 5 - menu.offsetHeight) + "px";
+    }
   }else {
     hideDropdownMenus();
   }
