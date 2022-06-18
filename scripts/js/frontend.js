@@ -105,6 +105,12 @@ function toggleCenteredPopUp(id) {
   isCenteredPopUp(id) ? closeCenteredPopUp(id) : openCenteredPopUp(id);
 }
 
+function closeCurrentPopUp() {
+  if(isCenteredPopUp(currentCenteredPopUp)) {
+    toggleCenteredPopUp(currentCenteredPopUp);
+  }
+}
+
 document.onkeydown = function(evt) {
     evt = evt || window.event;
     var isEscape = false;

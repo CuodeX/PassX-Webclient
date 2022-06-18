@@ -1,0 +1,9 @@
+.loader {
+  top: 0;
+  left: 0;
+  position: absolute;
+  height: 7px;
+  background-color: var(--primary-color);
+  width: 0;
+  transition: width .5s, opacity .2s;
+}

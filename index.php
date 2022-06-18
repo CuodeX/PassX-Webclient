@@ -1,6 +1,9 @@
 <!DOCTYPE html>
 <html lang="en" dir="ltr">
   <head>
+
+    <?php header('Access-Control-Allow-Origin: *'); ?>
+
     <meta charset="utf-8">
     <title>Password Manager</title>
 
@@ -9,6 +12,7 @@
     <link rel="stylesheet" href="css/centeredpopup.css">
     <link rel="stylesheet" href="css/dropdown.css">
     <link rel="stylesheet" href="css/mainform.css">
+    <link rel="stylesheet" href="css/loader.css">
     <link rel="stylesheet" href="css/loginform.css">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -33,6 +37,7 @@
 
         </div>
         <div class="logout-btn">
+          <img src="assets/icons/send.png" alt="Login" onClick="loginAgain()" title="Login">
           <img src="assets/icons/shutdown.png" alt="Logout" onClick="logout()" title="Logout">
         </div>
       </div>
@@ -62,6 +67,9 @@
 
         <div class="register" id="register-form">
           <div class="content">
+
+            <div class="loader" id="register-loader"></div>
+
             <h1>PassX</h1>
 
             <p class="error" id="register-error"></p>
@@ -129,7 +137,6 @@
             <input type="text" class="search-bar" name="search" placeholder="Filter" oninput="reloadPasswords()" id="search-bar" autofocus>
 
             <div class="add-btn" onClick="toggleCenteredPopUp('add-popup')"><a>+</a></div>
-            <div class="add-btn" onClick="addContents()" id="reload-btn"><a>🗘</a></div>
 
             <div id="accountinfo" class="accountinfo" onClick="toggleDisplay('accountoptions');"><h1 id="accountinfo-name"></h1><i>▼</i></div>
 
@@ -146,7 +153,7 @@
 
           <div class="passwords-wrapper" onscroll="hideDropdownMenus()" id="passwordsWrapper">
             <div class="big-add" id="emtyInfo">
-              <h1>Seems a little bit emty</h1>
+              <h1>Seems a little bit empty</h1>
               <button onClick="toggleCenteredPopUp('add-popup')">Add Entry</button>
             </div>
             <table class="passwords" id="passwordTable">
@@ -200,7 +207,7 @@
       <hr>
       <div class="content">
         <input type="password" placeholder="Old Password" id="change-password-old-input" class="maxLenghtFunction" maxlenght="50"><div class="icon" onClick="visibleChangePasswordOld()"><img src="assets/icons/visible.png" id="visibility-btn-change-pswd-old"></div>
-        <input type="password" placeholder="New Password" id="change-password-input" class="maxLenghtFunction" maxlenght="50"><div class="icon visibility left" onClick="visibleChangePasswordInput()"><img src="assets/icons/visible.png" id="visibility-btn-change-pswd"></div><div class="icon" onClick="setNotificationPopUp('Password Info', 'Your password is not going to be saved anywhere. It is only used as key to encrypt your password entries. This means, there is no possibility to reset your password if you forget it.')" title="Your password is not going to be saved anywhere. It's only used as key to encrypt your password entries. This means, there's no possibility to reset your password if you forget it."><img src="assets/icons/info.png"></div>
+        <input type="password" placeholder="New Password" id="change-password-input" class="maxLenghtFunction" maxlenght="50"><div class="icon visibility left" onClick="visibleChangePasswordInput()"><img src="assets/icons/visible.png" id="visibility-btn-change-pswd"></div><div class="icon" onClick="setNotificationPopUp('Password Info', 'We won't save your password anywhere! It's only used as key to encrypt your password entries. This means, we can't recover your password if you lose it!')" title="We won't save your password anywhere! It's only used as key to encrypt your password entries. This means, we can't recover your password if you lose it!"><img src="assets/icons/info.png"></div>
         <input type="password" placeholder="Repeat New Password" id="change-password-repeat-input" class="maxLenghtFunction" maxlenght="50">
         <button type="button" name="button" onClick="changePassword()">Change</button>
         <button type="button" name="button" style="margin-top: 10px;" onClick="toggleCenteredPopUp('change-password')">Cancel</button>
@@ -256,17 +263,14 @@
         <textarea placeholder="Description" rows="8" cols="80" class="maxLenghtFunction" maxlenght="100"></textarea>
         <button type="button" name="button" onClick="saveEditPopUp()">Save</button>
         <button type="button" name="button" style="margin-top: 10px;" onClick="closeEditPopUp()">Cancel</button>
+        <div class="icon" onclick="openDeleteOverBtn()">
+          <img src="assets/icons/delete.png" alt="Delete Btn" class="delete-btn" style="width: 50px">
+        </div>
       </div>
     </div>
-    <div class="background-black" id="background-black"></div>
+    <div class="background-black" id="background-black" onclick="closeCurrentPopUp()"></div>
 
   </body>
-
-  <script src="scripts/js/aes/cryptojs-aes.min.js"></script>
-  <script src="scripts/js/aes/cryptojs-aes-format.js"></script>
-  <script src="scripts/js/aes.js"></script>
-
-  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
 
 
   <script src="scripts/js/frontend.js"></script>
@@ -275,7 +279,24 @@
   <script src="scripts/js/dropdown.js"></script>
   <script src="scripts/js/maxlenghtfunction.js"></script>
 
+
+  <script type="text/javascript" src="scripts/js/aes/cryptojs-aes.min.js"></script>
+  <script type="text/javascript" src="scripts/js/aes/cryptojs-aes-format.js"></script>
+  <script type="text/javascript" src="scripts/js/aes.js"></script>
+
   <script type="text/javascript">
+
+    function openDeleteOverBtn() {
+      closeCurrentPopUp();
+      setTimeout(function() {
+        toggleCenteredPopUp('delete-popup');
+      }, 600);
+    }
+
+    function reloadContents() {
+      addContents();
+      setTimeout(reloadContents, 1000*60);
+    }
 
     function openCookie() {
       document.getElementById("login-wrapper").classList.add("hidden");
@@ -292,6 +313,7 @@
       setTimeout(function() {
         document.getElementById("login-form").style.display = "none";
       }, 1000);
+      document.getElementsByTagName('body')[0].style = 'width:100vw;height:100vh;';
     }
 
     function openLoginAgain() {
@@ -301,7 +323,7 @@
       document.getElementById("login-again-title").innerHTML = "Welcome Back " + contents[0] + "!";
       setupLoginAgainInputs(contents[1]);
     }
-    if(document.cookie != "") {
+    if(document.cookie.split(",").length > 1) {
       openLoginAgain();
     }
 

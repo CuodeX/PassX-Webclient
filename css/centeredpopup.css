@@ -73,7 +73,7 @@ div.question-popup {
   resize: vertical;
   padding-top: 10px;
   height: 60px;
-  max-height: 120px;
+  max-height: 80px;
   min-height: 24px;
 }
 
@@ -152,6 +152,9 @@ div.change-accountinfo-popup button {
   .edit-popup .icon.left {
     margin-right: 35px;
   }
+  .popup input:focus, textarea:focus {
+    margin-left: 5px;
+  }
 }
 
 @media (max-height: 700px) {
@@ -171,4 +174,9 @@ div.change-accountinfo-popup button {
     width: 100px;
     margin-left: 35px;
   }
+}
+
+#delete-popup {
+  box-shadow: 10px 0 10px var(--mid-gray);
+  z-index: 100;
 }

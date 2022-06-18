@@ -1,34 +1,54 @@
 //** Link **\\
-var apiVersion = 1.4;
-function getApiURL(fileName) {
-  return "https://api.cuodex.net/passx/v" + apiVersion + "/" + fileName + ".php";
+const API_VERSION = 2, PORT = 8443;
+
+function getApiURL(requestType) {
+  return "https://api.cuodex.net:" + PORT + "/passx/v" + API_VERSION + "/" + requestType  ;
+}
+
+function sendApiRequest(requestType, method, data, success, error) {
+  sendApiRequest(requestType, method, data, success, error, "");
+}
+
+function sendApiRequest(requestType, method, data, success, error, sesionId) {
+  var xhr = new XMLHttpRequest();
+  xhr.open(method, getApiURL(requestType), true);
+  xhr.setRequestHeader("Content-Type", "application/json");
+  if(sessionId) {
+    xhr.setRequestHeader("Authorization", "Bearer " + sessionId);
+  }
+  xhr.onload = function() {
+    var response = JSON.parse(xhr.response), status = String(response.status);
+    if(status.includes("201") || status.includes("200") || status.includes("202")) {
+      success(response);
+    }else {
+      error(response);
+    }
+  };
+  xhr.onerror = internalServerError;
+  var data = JSON.stringify(data);
+  xhr.setRequestHeader("Access-Control-Allow-Origin", "https://api.cuodex.net");
+  xhr.setRequestHeader("Access-Control-Allow-Methods", "POST");
+  xhr.setRequestHeader("Access-Control-Allow-Headers", "accept, content-type");
+  xhr.setRequestHeader("Access-Control-Max-Age", "1728000");
+  xhr.send(data);
 }
 function internalServerError() {
-  window.location.href= "https://cuodex.net/en/error/?exit_code=500";
+  //window.location.href= "https://cuodex.net/error/500";
+}
+
+function getPasswordTest(s) {
+  return encrypt("encryptionTest", s);
 }
 
 //** Change Account Information **\\
 
-function checkSessionid() {
-  $.ajax({
-    url: getApiURL("checksessionid"),
-    method: "POST",
-    data: {
-      username: username,
-      sessionid: sessionID
-    },
-    success: function(response) {
-      if(!response.success) {
-        password = ""
-        toggleCenteredPopUp("invalidsession-popup");
-        document.getElementById("invalidsession-popup-error").innerHTML = response.error;
-      }
-    },
-    error: function(response) {
-      internalServerError();
-    }
+function checksessionId() {
+  sendApiRequest("auth/check-session", "POST", {"sessionId": sessionId}, function() {}, function() {
+    password = ""
+    toggleCenteredPopUp("invalidsession-popup");
+    document.getElementById("invalidsession-popup-error").innerHTML = response.error;
   });
-  setTimeout(checkSessionid, 30* 1000);
+  setTimeout(checksessionId, 30* 1000);
 }
 
 function openChangePassword() {
@@ -41,29 +61,16 @@ function openChangePassword() {
 function changePassword() {
   closeCenteredPopUp("change-password");
   if(document.getElementById("change-password-input").value == document.getElementById("change-password-repeat-input").value) {
-    $.ajax({
-      url: getApiURL("changepassword"),
-      method: "POST",
-      data: {
-        accountname: username,
-        sessionID: sessionID,
-        password: document.getElementById("change-password-old-input").value,
-        newPassword: document.getElementById("change-password-input").value,
-        newPasswordTest: encrypt("encryptionTest", document.getElementById("change-password-input").value)
-      },
-      success: function(response) {
-        if(response.success) {
-          password = document.getElementById("change-password-input").value;
-          document.cookie = username + "," + password.length;
-          setNotificationPopUp("Password Changed", "You successfully changed your password");
-        }else {
-          setNotificationPopUp("Error", response.error);
-        }
-      },
-      error: function(response) {
-        internalServerError();
-      }
-    });
+    sendApiRequest("account/change-password", "PATCH", {
+      "passwordTest": password,
+      "newPasswordTest": encrypt("encryptionTest", document.getElementById("change-password-input").value)
+    }, function() {
+      password = document.getElementById("change-password-input").value;
+      document.cookie = username + "," + password.length;
+      setNotificationPopUp("Password Changed", "You successfully changed your password");
+    }, function(r) {
+      setNotificationPopUp("Error", r.message);
+    }, sessionId);
   }else {
     setNotificationPopUp("Error", "Your entered passwords don't match");
   }
@@ -78,26 +85,17 @@ function changeEmail() {
   closeCenteredPopUp("change-email");
   var newEmail = document.getElementById("change-email-input").value;
   if(newEmail != email) {
-    $.ajax({
-      url: getApiURL("changeemail"),
-      method: "POST",
-      data: {
-        accountname: username,
-        sessionID: sessionID,
-        newEmail: newEmail
-      },
-      success: function(response) {
-        if(response.success) {
-          setNotificationPopUp("Email Address Changed", "You successfully changed your email address from <b>" + email + "</b> to <b>" + newEmail + "</b>");
-          email = newEmail;
-        }else {
-          setNotificationPopUp("Error", response.error);
-        }
-      },
-      error: function(response) {
-        internalServerError();
+    sendApiRequest("account/information", "PUT", {
+      "passwordTest": getPasswordTest(password),
+      "data": {
+        "email": newEmail
       }
-    });
+    }, function() {
+      setNotificationPopUp("Email Address Changed", "You successfully changed your email address from <b>" + email + "</b> to <b>" + newEmail + "</b>");
+      email = newEmail;
+    }, function(r) {
+      setNotificationPopUp("Error", r.message);
+    }, sessionId);
   }
 }
 
@@ -110,36 +108,19 @@ var currentEditId = 0;
 
 function saveEditPopUp() {
   var content = document.getElementById("edit-popup-content");
-  console.log(content.childNodes[13].value);
-  $.ajax({
-    url : getApiURL("changeentry"),
-    method: "POST",
-    data: {
-      accountname: username,
-      id: passwords[currentEditId][6],
-      sessionID: sessionID,
-      username: encrypt(content.childNodes[3].value, password),
-      password: encrypt(content.childNodes[13].value, password),
-      description: encrypt(content.childNodes[17].value, password),
-      url: encrypt(content.childNodes[9].value, password),
-      email: encrypt(content.childNodes[6].value, password),
-      title: encrypt(content.childNodes[1].value, password)
-    },
-    success: function(response)
-    {
-      if(response.success) {
-        closeEditPopUp();
-        addContents();
-      }else {
-        setNotificationPopUp("Error", response.error);
-      }
-
-    },
-    error: function (response)
-    {
-      internalServerError();
-    }
-  });
+  sendApiRequest("entries/" + passwords[currentEditId][6], "PUT", {
+    "entryService": encrypt(content.childNodes[1].value, password),
+    "entryUrl": encrypt(content.childNodes[9].value, password),
+    "entryDescription": encrypt(content.childNodes[17].value, password),
+    "entryUsername": encrypt(content.childNodes[3].value, password),
+    "entryEmail": encrypt(content.childNodes[6].value, password),
+    "entryPassword": encrypt(content.childNodes[13].value, password)
+  }, function() {
+    closeEditPopUp();
+    addContents();
+  }, function(r) {
+    setNotificationPopUp("Error", r.message);
+  }, sessionId);
 }
 
 function openEditPopUp(id) {
@@ -170,95 +151,48 @@ function closeEditPopUp() {
 
 function addPassword() {
   if(document.getElementById("add-password").value == document.getElementById("add-repeatpassword").value) {
-    $.ajax({
-      url : getApiURL("addentry"),
-      method: "POST",
-      data : {
-        accountname: username,
-        sessionID: sessionID,
-        username: encrypt(document.getElementById("add-username").value, password),
-        password: encrypt(document.getElementById("add-password").value, password),
-        description: encrypt(document.getElementById("add-description").value, password),
-        email: encrypt(document.getElementById("add-email").value, password),
-        url: encrypt(document.getElementById("add-website").value, password),
-        title: encrypt(document.getElementById("add-title").value, password)
-      },
-      success: function(response)
-      {
-        if(response.success) {
-          toggleCenteredPopUp('add-popup');
-          addContents();
-        }else {
-          setNotificationPopUp("Error", response.error);
-        }
+    sendApiRequest("entries", "POST", {
+      "entryService": encrypt(document.getElementById("add-title").value, password),
+      "entryUrl": encrypt(document.getElementById("add-website").value, password),
+      "entryDescription": encrypt(document.getElementById("add-description").value, password),
+      "entryEmail": encrypt(document.getElementById("add-email").value, password),
+      "entryUsername": encrypt(document.getElementById("add-username").value, password),
+      "entryPassword": encrypt(document.getElementById("add-password").value, password)
+    }, function() {
+      toggleCenteredPopUp('add-popup');
+      addContents();
+    }, function(r) {
+      setNotificationPopUp("Error", r.message);
+    }, sessionId);
 
-      },
-      error: function (response)
-      {
-        internalServerError();
-      }
-    });
   }else {
     setNotificationPopUp("Error", "The entered passwords do not match");
   }
 }
 
 function deletePassword() {
-  $.ajax({
-    url : getApiURL("deleteentry"),
-    method: "POST",
-    data : {
-      username: username,
-      sessionID: sessionID,
-      passwordID: passwords[clickedPasswordElement.id][6]
-    },
-    success: function(response)
-    {
-      passwords = [];
-      if(response.success) {
-        addContents();
-        closeCenteredPopUp("delete-popup");
-      }else {
-        setNotificationPopUp("Error", response.error);
-      }
-    },
-    error: function (response)
-    {
-      internalServerError();
-    }
-  });
+  sendApiRequest("entries/" + passwords[clickedPasswordElement.id][6], "DELETE", {}, function() {
+    addContents();
+    closeCenteredPopUp("delete-popup");
+  }, function(r) {
+    setNotificationPopUp("Error", r.message);
+  }, sessionId);
 }
 
 function addContents() {
   document.getElementById("accountinfo-name").innerHTML = username;
-  $.ajax({
-    url : getApiURL("getpasswords"),
-    method: "POST",
-    data : {
-      username: username,
-      sessionID: sessionID
-    },
-    success: function(response)
-    {
-      passwords = [];
-      if(response.success) {
-        setTimeout(checkSessionid, 1000*30);
-        setTimeout(reloadContents, 1000*60);
-        for(var index in response.passwords) {
-          var e = response.passwords[index];
-          passwords.push([cleanString(decrypt(e.title, password)), cleanString(decrypt(e.username, password)), decrypt(e.password, password), cleanString(decrypt(e.email, password)), cleanString(decrypt(e.description, password)), cleanString(decrypt(e.url, password)), e.id]);
-        }
-        reloadPasswords();
-      }else {
-        setNotificationPopUp("Error", response.error + "tes");
-      }
-
-    },
-    error: function (response)
-    {
-      internalServerError();
+  sendApiRequest("entries", "GET", {}, function(response) {
+    passwords = [];
+    setTimeout(checksessionId, 1000*30);
+    setTimeout(reloadContents, 1000*60);
+    for(var index in response.data.entries) {
+      var e = response.data.entries[index];
+      passwords.push([cleanString(decrypt(e.title, password)), cleanString(decrypt(e.username, password)), decrypt(e.password, password), cleanString(decrypt(e.email, password)), cleanString(decrypt(e.description, password)), cleanString(decrypt(e.url, password)), e.id]);
     }
-  });
+    reloadPasswords();
+  }, function(response) {
+    setNotificationPopUp("Error", response.message);
+  }, sessionId);
 }
 
 function reloadPasswords() {
@@ -387,7 +321,7 @@ function visibleChangePasswordInput() {
 
 
 //** Login Communication **\\
-var password, username, email, sessionID;
+var password, username, email, sessionId;
 
 document.getElementById("login-password").addEventListener("keyup", function(event) {
   if (event.keyCode === 13) {
@@ -401,7 +335,7 @@ document.getElementById("login-username").addEventListener("keyup", function(eve
 });
 
 function logout() {
-  document.cookie = "";
+  document.cookie = "mty";
   location.reload(true);
 }
 
@@ -416,67 +350,46 @@ function loginAgain() {
       for(var i = 0; i < document.getElementById("login-again-passwords").children.length; i++) {
         passwordEntry += document.getElementById("login-again-passwords").children[i].children[0].value;
       }
-      var cookieUsername = document.cookie.split(",")[0];
-      $.ajax({
-        url : getApiURL("checkuser"),
-        method: "POST",
-        data : {
-          username: cookieUsername,
-          password: passwordEntry
-        },
-        success: function(response)
-        {
-          loginCount += 1;
-          if(response.success) {
-            var passwordTest = response.passwordTest;
-            if(decrypt(passwordTest, passwordEntry) == "encryptionTest") {
-              password = passwordEntry;
-              username = cookieUsername;
-              sessionID = response.sessionID;
-              email = response.email;
-              if(cookies) {
-                document.cookie = username + "," + password.length;
-              }
-              for(var i = 0; i < document.getElementById("login-again-passwords").children.length; i++) {
-                document.getElementById("login-again-passwords").children[i].style.animation = "5s login-again-entry-hide";
-                document.getElementById("login-again-passwords").children[i].style.animationDelay = (i*0.05) + "s";
-              }
-              setTimeout(function() {
-                document.getElementById("login-again-wrapper").classList.add("hidden");
-                openMain();
-                closeCookie();
-                setTimeout(function() {
-                  canLogin = true;
-                  document.getElementById("login-again-wrapper").style.display = "none";
-                }, 100);
-              }, document.getElementById("login-again-passwords").children.length*0.05*1000);
-              addContents();
-            }else {
-              canLogin = true;
-              setNotificationPopUp("Error", "You're entered password is wrong");
-            }
-          }else {
-            if(response.errorID == 1) {
-
-            }else {
-              setNotificationPopUp("Error", response.error);
-            }
-            for(var i = 0; i < document.getElementById("login-again-passwords").children.length; i++) {
-              document.getElementById("login-again-passwords").children[i].children[0].value = "";
-            }
-            document.getElementById("login-again-passwords").children[0].children[0].focus();
-            document.getElementById("login-again-passwords").children[0].style.marginLeft = "-30px";
-            setTimeout(function() {
-              document.getElementById("login-again-passwords").children[0].style.marginLeft = "0px";
-              canLogin = true;
-            }, 300);
-
+      var cookieUsername = document.cookie.split(",")[0], passwordTest = getPasswordTest(passwordEntry);
+      sendApiRequest("auth/login", "POST", {
+        "username": cookieUsername,
+        "passwordTest": passwordTest
+      }, function(response) {
+        loginCount += 1;
+        if(decrypt(passwordTest, passwordEntry) == "encryptionTest") {
+          password = passwordEntry;
+          username = cookieUsername;
+          sessionId = response.data.sessionId;
+          email = response.data.email;
+          if(cookies) {
+            document.cookie = username + "," + password.length;
           }
-
-        },
-        error: function (response) {
-          internalServerError();
+          for(var i = 0; i < document.getElementById("login-again-passwords").children.length; i++) {
+            document.getElementById("login-again-passwords").children[i].style.animation = "5s login-again-entry-hide";
+            document.getElementById("login-again-passwords").children[i].style.animationDelay = (i*0.05) + "s";
+          }
+          setTimeout(function() {
+            document.getElementById("login-again-wrapper").classList.add("hidden");
+            openMain();
+            closeCookie();
+            setTimeout(function() {
+              canLogin = true;
+              document.getElementById("login-again-wrapper").style.display = "none";
+            }, 100);
+          }, document.getElementById("login-again-passwords").children.length*0.05*1000);
+          addContents();
         }
+      }, function(response) {
+        setNotificationPopUp("Error", response.message);
+        for(var i = 0; i < document.getElementById("login-again-passwords").children.length; i++) {
+          document.getElementById("login-again-passwords").children[i].children[0].value = "";
+        }
+        document.getElementById("login-again-passwords").children[0].children[0].focus();
+        document.getElementById("login-again-passwords").children[0].style.marginLeft = "-30px";
+        setTimeout(function() {
+          document.getElementById("login-again-passwords").children[0].style.marginLeft = "0px";
+          canLogin = true;
+        }, 300);
       });
     }
   }else {
@@ -487,31 +400,31 @@ function loginAgain() {
 function checkIfLoginErrorAnOpenCookie() {
   if(loginCount <= 15) {
     if(document.getElementById("login-username").value != "" && document.getElementById("login-password").value != "") {
-      $.ajax({
-        url : getApiURL("checkuser"),
-        method: "POST",
-        data : {
-          username: document.getElementById("login-username").value,
-          password: document.getElementById("login-password").value
-        },
-        success: function(response)
-        {
-          loginCount += 1;
-          if(response.success) {
-            var passwordTest = response.passwordTest;
-            if(decrypt(passwordTest, document.getElementById("login-password").value) == "encryptionTest") {
-              openCookie();
-            }else {
-              document.getElementById("login-error").innerHTML = "You entered the wrong password";
-            }
-          }else {
-            document.getElementById("login-error").innerHTML = response.error;
-          }
-
-        },
-        error: function (response) {
-          internalServerError();
+      var passwordTest = getPasswordTest(document.getElementById("login-password").value);
+      document.getElementById("register-loader").style.width = "30%";
+      sendApiRequest("auth/login", "POST", {"username": document.getElementById("login-username").value, "passwordTest": passwordTest}, function(response) {
+        loginCount += 1;
+        if(decrypt(passwordTest, document.getElementById("login-password").value) == "encryptionTest") {
+          openCookie();
+        }else {
+          document.getElementById("login-error").innerHTML = "You entered the wrong password";
         }
+        document.getElementById("register-loader").style.width = "100%";
+        setTimeout(function() {
+          document.getElementById("register-loader").style.opacity = "0";
+        }, 500);
+        setTimeout(function() {
+          document.getElementById("register-loader").style.width = "0";
+          openLogin();
+        }, 700);
+        setTimeout(function() {
+          document.getElementById("register-loader").style.opacity = "1";
+        }, 1200);
+      }, function(response) {
+        document.getElementById("login-error").innerHTML = response.error || response.message;
+        setTimeout(function() {
+          document.getElementById("register-loader").style.width = "0";
+        }, 300);
       });
     }else {
       document.getElementById("login-error").innerHTML = "Please fill in all fields";
@@ -524,42 +437,30 @@ function checkIfLoginErrorAnOpenCookie() {
 function login() {
   if(loginCount <= 15) {
     if(document.getElementById("login-username").value != "" && document.getElementById("login-password").value != "") {
-      $.ajax({
-        url : getApiURL("checkuser"),
-        method: "POST",
-        data : {
-          username: document.getElementById("login-username").value,
-          password: document.getElementById("login-password").value
-        },
-        success: function(response)
-        {
-          loginCount += 1;
-          if(response.success) {
-            var passwordTest = response.passwordTest;
-            if(decrypt(passwordTest, document.getElementById("login-password").value) == "encryptionTest") {
-              document.getElementById("login-error").innerHTML = "";
-              password = document.getElementById("login-password").value;
-              username = document.getElementById("login-username").value;
-              sessionID = response.sessionID;
-              email = response.email;
-              if(cookies) {
-                document.cookie = username + "," + password.length;
-              }
-              addContents();
-              openMain();
-              closeCookie();
-            }else {
-              document.getElementById("login-error").innerHTML = "You entered the wrong password";
-            }
-          }else {
-            document.getElementById("login-error").innerHTML = response.error;
+      var passwordTest = getPasswordTest(document.getElementById("login-password").value);
+      sendApiRequest("auth/login", "POST", {
+        "username": document.getElementById("login-username").value,
+        "passwordTest": passwordTest
+      }, function(response) {
+        if(decrypt(passwordTest, document.getElementById("login-password").value) == "encryptionTest") {
+          document.getElementById("login-error").innerHTML = "";
+          password = document.getElementById("login-password").value;
+          username = document.getElementById("login-username").value;
+          sessionId = response.data.sessionId;
+          email = response.email;
+          if(cookies) {
+            document.cookie = username + "," + password.length;
           }
-
-        },
-        error: function (response) {
-          internalServerError();
+          addContents();
+          openMain();
+          closeCookie();
+        }else {
+          document.getElementById("login-error").innerHTML = "You entered the wrong password";
         }
-      });
+      }, function(r) {
+        document.getElementById("login-error").innerHTML = r.message;
+      })
+
     }else {
       document.getElementById("login-error").innerHTML = "Please fill in all fields";
     }
@@ -621,28 +522,28 @@ function register() {
         if(containsUpperCase(passwdInput) == true) {
           if(containsLowerCase(passwdInput) == true) {
             if(/\d/.test(passwdInput)) {
-              $.ajax({
-                url : getApiURL("createuser"),
-                method: "POST",
-                data : {
-                  username: document.getElementById("register-username").value,
-                  email: document.getElementById("register-email").value,
-                  passwordTest: encrypt("encryptionTest", document.getElementById("register-password").value)
-                },
-                success: function(response)
-                {
-                  if(response.success) {
-                    errorObj.innerHTML = "";
-                    openLogin();
-                  }else {
-                    errorObj.innerHTML = response.error;
-                  }
-
-                },
-                error: function (response)
-                {
-                  internalServerError();
-                }
+              document.getElementById("register-loader").style.width = "30%";
+              sendApiRequest("auth/register", "POST", {"email": document.getElementById("register-email").value, "passwordTest": getPasswordTest(document.getElementById("register-password").value), "username": document.getElementById("register-username").value}, function(r) {
+                errorObj.innerHTML = "";
+                document.getElementById("login-error").innerHTML = "";
+                document.getElementById("login-username").value = document.getElementById("register-username").value;
+                document.getElementById("login-password").value = document.getElementById("register-password").value;
+                document.getElementById("register-loader").style.width = "100%";
+                setTimeout(function() {
+                  document.getElementById("register-loader").style.opacity = "0";
+                }, 500);
+                setTimeout(function() {
+                  document.getElementById("register-loader").style.width = "0";
+                  openLogin();
+                }, 700);
+                setTimeout(function() {
+                  document.getElementById("register-loader").style.opacity = "1";
+                }, 1200);
+              }, function(r) {
+                errorObj.innerHTML = r.message;
+                setTimeout(function() {
+                  document.getElementById("register-loader").style.width = "0";
+                }, 300);
               });
           }else {
             errorObj.innerHTML = "Your password must contain at least 1 number";
